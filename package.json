@@ -1,16 +1,13 @@
 {
-  "name": "progetto-totalcorner",
+  "name": "totalcorner-scraper",
   "version": "1.0.0",
+  "description": "Scraper per totalcorner",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
-    "express": "^5.1.0",
-    "playwright": "^1.53.1"
+    "express": "^4.18.2",
+    "playwright": "^1.37.0"
   }
 }
