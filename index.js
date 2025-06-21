@@ -7,7 +7,7 @@ const PORT = 3000;
 async function findMatchLink(homeTeam, awayTeam) {
   console.log(`🔍 Cerco partita: home="${homeTeam}", away="${awayTeam}"`);
   
-  const browser = await chromium.launch({ headless: false, slowMo: 100 });
+  const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
 
