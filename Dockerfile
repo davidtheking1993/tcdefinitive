@@ -17,6 +17,8 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 RUN npm install
+
+RUN npx playwright install-deps
 RUN npx playwright install
 
 COPY . .
