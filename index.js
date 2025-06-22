@@ -4,25 +4,24 @@ const { chromium } = require('playwright');
 const app = express();
 const PORT = 3000;
 
+// Cache in-memory per ridurre chiamate duplicate
+const cache = new Map();
+
+function getCacheKey(home, away) {
+  return `${home.toLowerCase().trim()}_${away.toLowerCase().trim()}`;
+}
+
 async function findMatchLink(homeTeam, awayTeam) {
-  console.log(`🔍 Cerco partita: home="${homeTeam}", away="${awayTeam}"`);
-  
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
 
   try {
-    console.log('➡️ Navigo a https://www.totalcorner.com/match/today');
-    await page.goto('https://www.totalcorner.com/match/today', { waitUntil: 'domcontentloaded' });
+    await page.goto('https://www.totalcorner.com/match/today', { waitUntil: 'domcontentloaded', timeout: 15000 });
 
-    console.log('📄 Titolo pagina:', await page.title());
-
-    console.log('⏳ Attendo 5 secondi per caricamento dinamico...');
-    await page.waitForTimeout(5000);
-
-    console.log('🔍 Cerco righe nella tabella...');
+    // Attendi che le righe appaiano, ma senza usare wait fisso
+    await page.waitForSelector('#inplay_match_table > tbody.tbody_match > tr', { timeout: 5000 });
     const rows = await page.$$('#inplay_match_table > tbody.tbody_match > tr');
-    console.log(`🔍 Trovate ${rows.length} righe`);
 
     for (const row of rows) {
       const homeName = await row.$eval('td.text-right.match_home a span', el => el.textContent.trim()).catch(() => null);
@@ -30,14 +29,10 @@ async function findMatchLink(homeTeam, awayTeam) {
 
       if (!homeName || !awayName) continue;
 
-      console.log(`🏟️ Partita nella riga: casa="${homeName}" vs trasferta="${awayName}"`);
-
       if (
         homeName.toLowerCase().includes(homeTeam.toLowerCase().trim()) &&
         awayName.toLowerCase().includes(awayTeam.toLowerCase().trim())
       ) {
-        console.log(`⚽ Partita trovata: ${homeName} vs ${awayName}`);
-
         const linkHandles = await row.$$('td.text-center.td_analysis a');
         for (const linkHandle of linkHandles) {
           const text = await linkHandle.textContent();
@@ -48,7 +43,6 @@ async function findMatchLink(homeTeam, awayTeam) {
             return fullLink;
           }
         }
-        console.log('⚠️ Link Odds non trovato in questa riga');
       }
     }
 
@@ -61,8 +55,6 @@ async function findMatchLink(homeTeam, awayTeam) {
 }
 
 app.get('/get-link', async (req, res) => {
-  console.log('🔔 Ricevuta richiesta /get-link', req.query);
-
   const home = req.query.home;
   const away = req.query.away;
 
@@ -70,26 +62,26 @@ app.get('/get-link', async (req, res) => {
     return res.status(400).send('Parametri mancanti: usa ?home=...&away=...');
   }
 
+  const key = getCacheKey(home, away);
+
+  if (cache.has(key)) {
+    const cached = cache.get(key);
+    if (Date.now() - cached.timestamp < 2 * 60 * 1000) {
+      return res.send({ link: cached.link });
+    }
+    cache.delete(key);
+  }
+
   try {
     const link = await findMatchLink(home, away);
+    cache.set(key, { link, timestamp: Date.now() });
     res.send({ link });
   } catch (error) {
-    console.error('Errore:', error);
     res.status(500).send({ error: error.message });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server avviato su http://localhost:${PORT}`);
+  console.log(`✅ Server avviato su http://localhost:${PORT}`);
 });
 
-/* --- TEST STANDALONE OPZIONALE ---
-(async () => {
-  try {
-    const testLink = await findMatchLink('Patrocinense', 'Caldense');
-    console.log('Link trovato (test standalone):', testLink);
-  } catch (e) {
-    console.error('Errore test standalone:', e);
-  }
-})();
-*/
