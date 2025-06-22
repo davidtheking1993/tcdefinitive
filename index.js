@@ -17,10 +17,11 @@ async function findMatchLink(homeTeam, awayTeam) {
   const page = await context.newPage();
 
   try {
-    await page.goto('https://www.totalcorner.com/match/today', { waitUntil: 'domcontentloaded', timeout: 15000 });
+    // Timeout aumentato a 30 secondi
+    await page.goto('https://www.totalcorner.com/match/today', { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    // Attendi che le righe appaiano, ma senza usare wait fisso
-    await page.waitForSelector('#inplay_match_table > tbody.tbody_match > tr', { timeout: 5000 });
+    // Timeout aumentato a 10 secondi per attendere la tabella
+    await page.waitForSelector('#inplay_match_table > tbody.tbody_match > tr', { timeout: 10000 });
     const rows = await page.$$('#inplay_match_table > tbody.tbody_match > tr');
 
     for (const row of rows) {
@@ -84,4 +85,3 @@ app.get('/get-link', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`✅ Server avviato su http://localhost:${PORT}`);
 });
-
