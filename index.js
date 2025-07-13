@@ -11,19 +11,28 @@ function getCacheKey(home, away) {
   return `${home.toLowerCase().trim()}_${away.toLowerCase().trim()}`;
 }
 
+// Singleton per il browser
+let browserInstance = null;
+
+async function getBrowser() {
+  if (!browserInstance) {
+    browserInstance = await chromium.launch({ headless: true });
+    console.log('🚀 Browser Playwright avviato');
+  }
+  return browserInstance;
+}
+
+// Funzione principale di scraping
 async function findMatchLink(homeTeam, awayTeam) {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await getBrowser();
   const context = await browser.newContext();
   const page = await context.newPage();
 
   try {
-    // Timeout aumentato a 30 secondi
     await page.goto('https://www.totalcorner.com/match/today', { waitUntil: 'domcontentloaded', timeout: 30000 });
-
-    // Timeout aumentato a 10 secondi per attendere la tabella
     await page.waitForSelector('#inplay_match_table > tbody.tbody_match > tr', { timeout: 10000 });
-    const rows = await page.$$('#inplay_match_table > tbody.tbody_match > tr');
 
+    const rows = await page.$$('#inplay_match_table > tbody.tbody_match > tr');
     for (const row of rows) {
       const homeName = await row.$eval('td.text-right.match_home a span', el => el.textContent.trim()).catch(() => null);
       const awayName = await row.$eval('td.text-left.match_away a span', el => el.textContent.trim()).catch(() => null);
@@ -40,21 +49,25 @@ async function findMatchLink(homeTeam, awayTeam) {
           if (text.trim().toLowerCase() === 'odds') {
             const href = await linkHandle.getAttribute('href');
             const fullLink = 'https://www.totalcorner.com' + href;
-            await browser.close();
+            await page.close();
+            await context.close();
             return fullLink;
           }
         }
       }
     }
 
-    await browser.close();
+    await page.close();
+    await context.close();
     throw new Error('Partita non trovata nella lista di oggi');
   } catch (error) {
-    await browser.close();
+    await page.close();
+    await context.close();
     throw error;
   }
 }
 
+// API endpoint
 app.get('/get-link', async (req, res) => {
   const home = req.query.home;
   const away = req.query.away;
@@ -82,6 +95,17 @@ app.get('/get-link', async (req, res) => {
   }
 });
 
+// Avvio server
 app.listen(PORT, () => {
   console.log(`✅ Server avviato su http://localhost:${PORT}`);
+});
+
+// Cleanup su SIGTERM (es. restart container Render)
+process.on('SIGTERM', async () => {
+  console.log('🛑 SIGTERM ricevuto, chiusura browser...');
+  if (browserInstance) {
+    await browserInstance.close();
+    console.log('✅ Browser chiuso correttamente');
+  }
+  process.exit(0);
 });
